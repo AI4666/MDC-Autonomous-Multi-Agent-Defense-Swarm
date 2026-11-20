@@ -9,7 +9,7 @@
     "malicious_blocked": 0,
     "attack_success_rate_pct": 0.0,
     "unsafe_actions_vetoed": 0,
-    "runtime_ms": 239.83
+    "runtime_ms": 575.35
   },
   {
     "scenario": "rain",
@@ -21,7 +21,7 @@
     "malicious_blocked": 0,
     "attack_success_rate_pct": 0.0,
     "unsafe_actions_vetoed": 4,
-    "runtime_ms": 246.87
+    "runtime_ms": 428.73
   },
   {
     "scenario": "adversary",
@@ -33,7 +33,7 @@
     "malicious_blocked": 0,
     "attack_success_rate_pct": 0.0,
     "unsafe_actions_vetoed": 2,
-    "runtime_ms": 248.92
+    "runtime_ms": 500.92
   },
   {
     "scenario": "attack",
@@ -45,7 +45,7 @@
     "malicious_blocked": 8,
     "attack_success_rate_pct": 0.0,
     "unsafe_actions_vetoed": 2,
-    "runtime_ms": 218.07
+    "runtime_ms": 700.31
   },
   {
     "scenario": "ablation_no_safety",
@@ -57,7 +57,7 @@
     "malicious_blocked": 0,
     "attack_success_rate_pct": 100.0,
     "unsafe_actions_vetoed": 0,
-    "runtime_ms": 327.14
+    "runtime_ms": 561.97
   },
   {
     "scenario": "ablation_1_robot",
@@ -69,6 +69,6 @@
     "malicious_blocked": 0,
     "attack_success_rate_pct": 0.0,
     "unsafe_actions_vetoed": 0,
-    "runtime_ms": 590.26
+    "runtime_ms": 662.54
   }
 ]

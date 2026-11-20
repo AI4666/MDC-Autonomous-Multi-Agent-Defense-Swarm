@@ -233,6 +233,10 @@
       if (banner) {
         banner.innerHTML = `<span style="color: #38bdf8;">🛡️ <b>Part 5 Swarm Scenario [${scenarioName.toUpperCase()}]:</b> 0 Collisions &bull; Logged to decision_log.jsonl</span>`;
       }
+
+      if (typeof window.run3DSwarmVisualScenario === 'function') {
+        window.run3DSwarmVisualScenario(scenarioName, false);
+      }
     } catch (e) {
       console.error('[SwarmHUD] Scenario run error:', e);
     }
@@ -278,6 +282,19 @@
     document.querySelectorAll('.sw-scenario-btn').forEach(btn => {
       btn.onclick = () => triggerSwarmScenario(btn.dataset.scenario);
     });
+
+    const btnWatch3D = document.getElementById('btn-sw-watch-3d');
+    if (btnWatch3D) {
+      btnWatch3D.onclick = () => {
+        const activeBtn = document.querySelector('.sw-scenario-btn.active');
+        const sc = activeBtn ? activeBtn.dataset.scenario : 'attack';
+        if (typeof window.run3DSwarmVisualScenario === 'function') {
+          window.run3DSwarmVisualScenario(sc, true);
+        } else if (modal) {
+          modal.style.display = 'none';
+        }
+      };
+    }
 
     fetchSwarmState();
   }

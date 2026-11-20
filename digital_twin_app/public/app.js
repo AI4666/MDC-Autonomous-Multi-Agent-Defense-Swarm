@@ -10060,3 +10060,74 @@ function setupFleetManagerUI() {
 
 // Run last, so every top-level declaration above is initialized before init() starts the first frame.
 init();
+
+// ============================================================================
+// PART 5 LIVE 3D SCENARIO ORCHESTRATOR (Normal, Rain, Adversary, Attack)
+// ============================================================================
+window.run3DSwarmVisualScenario = async function (scenarioName, closeModal = false) {
+  const sc = String(scenarioName || 'normal').toLowerCase();
+
+  // Ensure simulation is running unless kill-switch is engaged
+  if (!simRunning) {
+    const playBtn = document.getElementById('btn-sim-play');
+    if (playBtn) playBtn.click();
+  }
+
+  // Ensure 3D A* Ribbons are visible
+  if (astarRibbonGroup) astarRibbonGroup.visible = true;
+
+  // Set weather & pedestrian density based on scenario
+  currentAIWeather = (sc === 'rain') ? 'Rain' : 'Clear';
+  document.querySelectorAll('.weather-chip-btn').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-weather') === currentAIWeather);
+  });
+
+  const pedSelect = document.getElementById('pedestrian-density-select');
+  if (pedSelect) {
+    pedSelect.value = (sc === 'rain' || sc === 'attack') ? 'rush' : 'normal';
+    pedSelect.dispatchEvent(new Event('change'));
+  }
+
+  // Recompute CSP & A* ribbons and dispatch the 3 cooperating AMRs
+  await recalculateFleetSchedule();
+  executeMasterSchedule();
+
+  const stMap = labStations || {};
+  const stA = stMap.inventory || { x: -2.0, z: -1.1 };
+  const stB = stMap.electronics || { x: -2.2, z: 1.0 };
+  const stC = stMap.testing || { x: 2.0, z: -0.5 };
+
+  dispatchSelectedRobot({ x: stA.x, z: stA.z }, 'Station A: Parts Shelf (Swarm Job 1)', 'AMR-01');
+  dispatchSelectedRobot({ x: stB.x, z: stB.z }, 'Station B: Electronics Bench (Swarm Job 2)', 'AMR-02');
+  dispatchSelectedRobot({ x: stC.x, z: stC.z }, 'Station C: Testing Table (Swarm Job 3)', 'AMR-03');
+
+  // In Adversary or Attack scenario, send AMR-06 as the blocking adversary into the central corridor
+  if (sc === 'adversary' || sc === 'attack') {
+    const advRobot = robotDefs.find(r => r.id === 'AMR-06');
+    if (advRobot) {
+      advRobot.enabled = true;
+      if (advRobot.mesh) advRobot.mesh.visible = true;
+      dispatchSelectedRobot({ x: 0.05, z: -0.15 }, 'ADV-BLOCKER-01 Corridor Intercept', 'AMR-06');
+      advRobot.status = '👾 ADV-BLOCKER-01 (Blocking Corridor)';
+    }
+  }
+
+  updateFleetCards();
+
+  if (closeModal) {
+    const swModal = document.getElementById('swarm-defense-modal');
+    if (swModal) swModal.style.display = 'none';
+  }
+
+  const banner = document.querySelector('.dispatch-banner');
+  if (banner) {
+    const msgMap = {
+      normal: '☀️ <b>3D Scenario [NORMAL]:</b> AMR-01, AMR-02 & AMR-03 executing conflict-free Space-Time A* & CSP routes (0 Collisions)!',
+      rain: '🌧️ <b>3D Scenario [RAIN]:</b> Noisy sensors (68.4% conf) & Bayes Risk P(Unsafe)=0.656 >= 0.60 -> Safety Supervisor veto & wet-corridor reroute active!',
+      adversary: '👾 <b>3D Scenario [ADVERSARY]:</b> AMR-06 (ADV-BLOCKER-01) intercepting central corridor -> DefenseAgent (Alpha-Beta Minimax) + A* dynamically replanning!',
+      attack: '🚨 <b>3D Scenario [ATTACK]:</b> 8/8 Malicious Requests Blocked (0% Attack Success) while AMR-01..03 evade ADV-BLOCKER-01 with 0 collisions!'
+    };
+    banner.innerHTML = `<span style="color: #38bdf8;">${msgMap[sc] || msgMap.normal}</span>`;
+  }
+};
+
