@@ -1,0 +1,74 @@
+[
+  {
+    "scenario": "normal",
+    "robots": 3,
+    "on_time_rate_pct": 100.0,
+    "total_path_cost": 329,
+    "collisions": 0,
+    "replans": 0,
+    "malicious_blocked": 0,
+    "attack_success_rate_pct": 0.0,
+    "unsafe_actions_vetoed": 0,
+    "runtime_ms": 107.01
+  },
+  {
+    "scenario": "rain",
+    "robots": 3,
+    "on_time_rate_pct": 100.0,
+    "total_path_cost": 327,
+    "collisions": 0,
+    "replans": 4,
+    "malicious_blocked": 0,
+    "attack_success_rate_pct": 0.0,
+    "unsafe_actions_vetoed": 4,
+    "runtime_ms": 96.23
+  },
+  {
+    "scenario": "adversary",
+    "robots": 3,
+    "on_time_rate_pct": 100.0,
+    "total_path_cost": 315,
+    "collisions": 0,
+    "replans": 9,
+    "malicious_blocked": 0,
+    "attack_success_rate_pct": 0.0,
+    "unsafe_actions_vetoed": 2,
+    "runtime_ms": 90.33
+  },
+  {
+    "scenario": "attack",
+    "robots": 3,
+    "on_time_rate_pct": 100.0,
+    "total_path_cost": 315,
+    "collisions": 0,
+    "replans": 9,
+    "malicious_blocked": 8,
+    "attack_success_rate_pct": 0.0,
+    "unsafe_actions_vetoed": 2,
+    "runtime_ms": 95.01
+  },
+  {
+    "scenario": "ablation_no_safety",
+    "robots": 3,
+    "on_time_rate_pct": 100.0,
+    "total_path_cost": 563,
+    "collisions": 13,
+    "replans": 0,
+    "malicious_blocked": 0,
+    "attack_success_rate_pct": 100.0,
+    "unsafe_actions_vetoed": 0,
+    "runtime_ms": 156.85
+  },
+  {
+    "scenario": "ablation_1_robot",
+    "robots": 1,
+    "on_time_rate_pct": 57.1,
+    "total_path_cost": 394,
+    "collisions": 0,
+    "replans": 0,
+    "malicious_blocked": 0,
+    "attack_success_rate_pct": 0.0,
+    "unsafe_actions_vetoed": 0,
+    "runtime_ms": 107.46
+  }
+]

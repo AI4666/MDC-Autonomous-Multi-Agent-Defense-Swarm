@@ -1,0 +1,4 @@
+rule_id,type,condition,action,notes
+R1,hours,dst outside open hours,reject,Check OPEN_HOURS in rules.py
+R2,missing_slot,missing time,ask_clarify,Request time from user
+R3,conflict,src=dst,reject,Ill-formed request
