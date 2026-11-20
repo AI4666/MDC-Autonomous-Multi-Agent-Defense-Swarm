@@ -2,13 +2,16 @@
 Automated Tests for Part 1 Planner Agent (Multi-Robot Allocation & Space-Time Conflict-Free A*)
 Owner: Miguel Martinez (Part 1 Owner)
 """
+from pathlib import Path
 from swarm.blackboard import Blackboard
 from swarm.agents.planner_agent import PlannerAgent
 
+TEST_LOG = str(Path("docs") / "_pytest_log.jsonl")
 
-def test_planner_allocates_across_multiple_robots(tmp_path):
+
+def test_planner_allocates_across_multiple_robots():
     """PlannerAgent allocates jobs across the 3-robot fleet and produces valid conflict-free routes."""
-    bb = Blackboard(log_path=str(tmp_path / "log.jsonl"), num_robots=3)
+    bb = Blackboard(log_path=TEST_LOG, num_robots=3)
     planner = PlannerAgent(bb)
     jobs = [
         {"id": "J1", "src": "robotics_lab", "dst": "library", "src_coord": (1, 1), "dst_coord": (2, 3), "accepted": True},
@@ -22,9 +25,9 @@ def test_planner_allocates_across_multiple_robots(tmp_path):
         assert len(j["planned_route"]) >= 2
 
 
-def test_planner_dynamic_replan_around_blocked_cell(tmp_path):
+def test_planner_dynamic_replan_around_blocked_cell():
     """PlannerAgent dynamically replans when a cell on the robot's path becomes blocked."""
-    bb = Blackboard(log_path=str(tmp_path / "log.jsonl"), num_robots=3)
+    bb = Blackboard(log_path=TEST_LOG, num_robots=3)
     planner = PlannerAgent(bb)
     job = {"id": "J1", "src": "robotics_lab", "dst": "library", "src_coord": (1, 1), "dst_coord": (2, 3), "accepted": True}
     bb.robots["AMR-01"]["pos"] = (1, 1)
