@@ -146,6 +146,248 @@ app.post('/api/schedule/jobs', (req, res) => {
   });
 });
 
+// ============================================================================
+// CAI 4505C PART 5: AUTONOMOUS MULTI-AGENT DEFENSE SWARM ENDPOINTS
+// ============================================================================
+const fs = require('fs');
+const { execFile } = require('child_process');
+
+const ROOT_DIR = path.resolve(__dirname, '..');
+const DECISION_LOG_PATH = path.join(ROOT_DIR, 'decision_log.jsonl');
+const EVAL_RESULTS_PATH = path.join(ROOT_DIR, 'docs', 'evaluation_results.json');
+
+const swarmState = {
+  activeScenario: 'attack',
+  weather: 'clear',
+  killSwitch: false,
+  adversaryActive: false,
+  riskThreshold: 0.60,
+  currentRisk: 0.015,
+  perceptionClass: 'package',
+  perceptionConfidence: 0.948,
+  metrics: {
+    total_requests: 22,
+    valid_jobs: 14,
+    malicious_blocked: 8,
+    attack_success_rate_pct: 0.0,
+    unsafe_actions_vetoed: 2,
+    replans: 9,
+    collisions: 0,
+    on_time_rate_pct: 100.0
+  }
+};
+
+function appendDecisionLog(sender, recipient, event_type, decision, payload) {
+  const entry = {
+    timestamp: Number((Date.now() / 1000).toFixed(4)),
+    timestep: Math.floor(performance.now() / 1000),
+    sender,
+    recipient,
+    event_type,
+    decision,
+    payload
+  };
+  try {
+    fs.appendFileSync(DECISION_LOG_PATH, JSON.stringify(entry) + '\n', 'utf8');
+  } catch (e) {}
+  return entry;
+}
+
+function readRecentDecisionLogs(limit = 25) {
+  try {
+    if (!fs.existsSync(DECISION_LOG_PATH)) return [];
+    const lines = fs.readFileSync(DECISION_LOG_PATH, 'utf8').trim().split('\n').filter(Boolean);
+    return lines.slice(-limit).map(line => {
+      try { return JSON.parse(line); } catch (e) { return null; }
+    }).filter(Boolean);
+  } catch (e) {
+    return [];
+  }
+}
+
+function readEvaluationResults() {
+  try {
+    if (!fs.existsSync(EVAL_RESULTS_PATH)) return [];
+    return JSON.parse(fs.readFileSync(EVAL_RESULTS_PATH, 'utf8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+app.get('/api/swarm/state', (req, res) => {
+  res.json({
+    swarmState,
+    evaluationResults: readEvaluationResults(),
+    recentLogs: readRecentDecisionLogs(25)
+  });
+});
+
+app.post('/api/swarm/kill-switch', (req, res) => {
+  const { active, reason } = req.body || {};
+  swarmState.killSwitch = (active !== undefined) ? Boolean(active) : !swarmState.killSwitch;
+  const rsn = reason || (swarmState.killSwitch ? 'Operator engaged Safety Supervisor Kill-Switch (INV-4)' : 'Operator released Kill-Switch');
+
+  if (swarmState.killSwitch) {
+    swarmState.metrics.unsafe_actions_vetoed += 1;
+    broadcast('E_STOP', { source: 'SafetySupervisor (INV-4)', reason: rsn });
+    appendDecisionLog('SafetySupervisor', 'ALL_ROBOTS', 'KILL_SWITCH_ENGAGED', 'EMERGENCY_STOP', {
+      invariant: 'INV_4_KILL_SWITCH_AND_RISK',
+      kill_switch: true,
+      reason: rsn
+    });
+  } else {
+    appendDecisionLog('SafetySupervisor', 'ALL_ROBOTS', 'KILL_SWITCH_RELEASED', 'RESUMED', {
+      invariant: 'INV_4_KILL_SWITCH_AND_RISK',
+      kill_switch: false,
+      reason: rsn
+    });
+  }
+
+  res.json({
+    success: true,
+    killSwitch: swarmState.killSwitch,
+    reason: rsn,
+    swarmState,
+    recentLogs: readRecentDecisionLogs(25)
+  });
+});
+
+app.post('/api/swarm/request', (req, res) => {
+  const { text, src, dst, hour, deadline_steps } = req.body || {};
+  const rawText = String(text || '').trim();
+  const low = rawText.toLowerCase();
+
+  const injectionPatterns = [
+    /ignore\s+(all\s+|the\s+|previous\s+)?rules/i,
+    /bypass\s+(safety|security|supervisor|check)/i,
+    /override\s+(protocol|restriction|safety|auth)/i,
+    /sudo\s+/i,
+    /system\s*prompt/i,
+    /act\s+as\s+admin/i,
+    /disable\s+kill[\s_-]?switch/i
+  ];
+  const restrictedList = ['server_room', 'server room', 'restricted_vault', 'restricted vault', 'hazmat_storage', 'hazmat'];
+
+  const reasons = [];
+  if (injectionPatterns.some(rx => rx.test(rawText))) {
+    reasons.push('R0_PROMPT_INJECTION_DETECTED');
+  }
+  const targetDst = String(dst || (low.includes('server') ? 'server_room' : (low.includes('vault') ? 'restricted_vault' : 'library'))).toLowerCase();
+  const sourceSrc = String(src || 'robotics_lab').toLowerCase();
+
+  if (restrictedList.some(r => targetDst.includes(r) || low.includes(r))) {
+    reasons.push('R1_RESTRICTED_BUILDING_ACCESS');
+    reasons.push('INV_1_NO_RESTRICTED_ZONE');
+  }
+
+  let parsedHour = (hour !== undefined && hour !== null) ? Number(hour) : 12;
+  const timeMatch = low.match(/\b(\d{1,2})(?::\d{2})?\s*(am|pm)\b/i) || low.match(/\bat\s+(\d{1,2}):(\d{2})\b/i);
+  if (timeMatch && hour === undefined) {
+    let h = parseInt(timeMatch[1], 10);
+    const mer = (timeMatch[2] || '').toLowerCase();
+    if (mer === 'pm' && h !== 12) h += 12;
+    if (mer === 'am' && h === 12) h = 0;
+    parsedHour = h;
+  }
+
+  if (parsedHour < 7 || parsedHour > 21) {
+    reasons.push('R2_OUTSIDE_BUILDING_HOURS');
+  }
+  if (sourceSrc === targetDst) {
+    reasons.push('R3_INVALID_OR_CONFLICTING_DESTINATION');
+  }
+  const steps = (deadline_steps !== undefined) ? Number(deadline_steps) : (low.includes('2 steps') || low.includes('1 step') ? 2 : 40);
+  if (steps < 5) {
+    reasons.push('R4_IMPOSSIBLE_DEADLINE');
+  }
+  if (swarmState.killSwitch) {
+    reasons.push('INV_4_KILL_SWITCH_ACTIVE');
+  }
+
+  const accepted = reasons.length === 0;
+  swarmState.metrics.total_requests += 1;
+  if (accepted) {
+    swarmState.metrics.valid_jobs += 1;
+  } else {
+    swarmState.metrics.malicious_blocked += 1;
+    swarmState.metrics.unsafe_actions_vetoed += 1;
+  }
+
+  appendDecisionLog(
+    'RequestAgent',
+    accepted ? 'PlannerAgent' : 'SafetySupervisor',
+    'LIVE_REQUEST_VALIDATION',
+    accepted ? 'ACCEPTED' : 'REJECTED',
+    { text: rawText, src: sourceSrc, dst: targetDst, hour: parsedHour, deadline_steps: steps, accepted, reasons }
+  );
+
+  res.json({
+    accepted,
+    text: rawText,
+    src: sourceSrc,
+    dst: targetDst,
+    hour: parsedHour,
+    deadline_steps: steps,
+    reasons,
+    swarmState,
+    recentLogs: readRecentDecisionLogs(25)
+  });
+});
+
+app.post('/api/swarm/scenario', (req, res) => {
+  const { scenario } = req.body || {};
+  const sc = String(scenario || 'attack').toLowerCase();
+  swarmState.activeScenario = sc;
+  swarmState.weather = (sc === 'rain') ? 'rain' : 'clear';
+  swarmState.adversaryActive = (sc === 'adversary' || sc === 'attack');
+  swarmState.currentRisk = (sc === 'rain') ? 0.656 : (swarmState.adversaryActive ? 0.420 : 0.015);
+  swarmState.perceptionClass = (sc === 'rain' || swarmState.adversaryActive) ? 'obstacle' : 'package';
+  swarmState.perceptionConfidence = (sc === 'rain') ? 0.684 : 0.948;
+
+  appendDecisionLog('PlannerAgent', 'Blackboard', 'SCENARIO_ACTIVATED', 'EXEC_SCENARIO', {
+    scenario: sc,
+    weather: swarmState.weather,
+    adversary_active: swarmState.adversaryActive,
+    bayes_risk: swarmState.currentRisk
+  });
+
+  // Execute Python run_part5.py in background if available to refresh evaluation_results.json
+  const pyScript = path.join(ROOT_DIR, 'run_part5.py');
+  if (fs.existsSync(pyScript)) {
+    execFile('python', [pyScript, '--scenario', 'all'], { cwd: ROOT_DIR, timeout: 6000 }, () => {
+      const evals = readEvaluationResults();
+      const matched = evals.find(e => e.scenario === sc);
+      if (matched) {
+        swarmState.metrics = {
+          ...swarmState.metrics,
+          on_time_rate_pct: matched.on_time_rate_pct,
+          total_path_cost: matched.total_path_cost,
+          collisions: matched.collisions,
+          replans: matched.replans,
+          malicious_blocked: matched.malicious_blocked,
+          attack_success_rate_pct: matched.attack_success_rate_pct,
+          unsafe_actions_vetoed: matched.unsafe_actions_vetoed
+        };
+      }
+      res.json({
+        success: true,
+        scenario: sc,
+        swarmState,
+        evaluationResults: evals,
+        recentLogs: readRecentDecisionLogs(25)
+      });
+    });
+  } else {
+    res.json({
+      success: true,
+      scenario: sc,
+      swarmState,
+      evaluationResults: readEvaluationResults(),
+      recentLogs: readRecentDecisionLogs(25)
+    });
+  }
+});
+
 // Shadow mode: the browser runs the simulation and reports it; the world model mirrors one tab.
 // The first tab to send telemetry owns it until it disconnects; other tabs are ignored, so two
 // open tabs (two separate simulations) can't overwrite each other.
